@@ -7,6 +7,8 @@
 - `index.html`: 배포되는 페이지(빌드 결과물)입니다. GitHub Pages가 이 파일을 그대로 제공합니다.
 - `src/gdoc.html`: 구글 문서 「녹조_2027년 임금·단체교섭 요구안 해설_사측공유본」의 HTML 내보내기입니다.
 - `src/current-rules.html`: 현행 규정 7종(기본협약, 2026년 임금협약, 취업규칙, 운영실무규정, 고충처리규정, 회계실무규정, 퇴직연금규약)의 원문입니다.
+- `src/laws.json`: 요구안이 인용한 법령 조문 113개의 현행 원문입니다. 조문 번호에 마우스를 올리면 보이는 미리보기에 씁니다.
+- `tools/fetch_laws.py`: 위 법령 원문을 국가법령정보센터에서 다시 가져옵니다.
 - `tools/parse_doc.py`: 구글 문서를 조문 단위 데이터로 바꿉니다.
 - `tools/build.py`: 데이터와 `tools/style.css`, `tools/app.js`를 합쳐 `index.html`을 만듭니다.
 
@@ -17,7 +19,11 @@
 ```sh
 pip install beautifulsoup4 lxml
 GATE_PASSWORD='전달할 암호' python3 tools/build.py
+# 새로 인용한 법령 조문이 있다고 나오면 원문을 받은 뒤 다시 빌드합니다
+python3 tools/fetch_laws.py && GATE_PASSWORD='전달할 암호' python3 tools/build.py
 ```
+
+부록 D(노사 공유 자료)는 연구소 공유본에 싣지 않습니다. `src/gdoc.html`에서도 잘라 냈고, 빌드할 때 다시 걸러 냅니다.
 
 ## 의견 저장소
 

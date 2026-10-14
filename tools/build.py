@@ -25,6 +25,9 @@ SB_KEY = ("eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6
 esc = lambda s: html.escape(s, quote=True)  # noqa: E731
 
 doc = parse(os.path.join(SRC, "gdoc.html"))
+# 부록 D(노사 공유 자료)는 연구소 공유본에 싣지 않습니다
+doc["appx"] = [s for s in doc["appx"] if not s["key"].startswith("ap-D")]
+DROP_TEXT = [" 요구안을 총인건비로 환산한 추정은 부록 D에 정리했습니다."]
 
 # ---------- 조문 색인 ----------
 ARTS = {}
@@ -50,23 +53,140 @@ for k, a in ARTS.items():
     REF_DATA[k] = {"t": name, "b": lines}
 
 # ---------- 조문 참조 연결 ----------
-# 문장 안에서 가장 가까운 앞쪽 "문서 이름"을 보고 어느 협약의 조문인지 판단합니다.
-# 법령·현행 규정·다른 협약을 가리키는 번호에는 링크를 걸지 않습니다.
-ANCHORS = [
-    ("」", None), ("같은 법", None), ("시행령", None), ("시행규칙", None), ("규칙", None), ("규정", None),
-    ("정관", None), ("규약", None), ("고시", None), ("헌법", None), ("지침", None), ("기본협약", None),
-    ("모범단체협약", None), ("모범단협", None), ("2026년 임금협약", None), ("26 임금협약", None),
-    ("2026 임금협약", None), ("임금협약", "w"), ("단체협약", "d"), ("이 협약", "self"), ("같은 협약", "keep"),
+# 조문 번호 바로 앞의 문서 이름(「법령」, 현행 규정, 단체협약·임금협약)으로 어느 문서의 조문인지 판단합니다.
+# 해설에서 문서 이름 없이 번호만 쓴 경우에는 같은 문장의 가장 가까운 문서 이름을 보되,
+# 그 문서가 법령이나 현행 규정이면 확신할 수 없으므로 링크를 걸지 않습니다.
+RULES = [  # (본문 표기, 정식 이름, 짧은 키)
+    ("2026년 임금협약", "2026년 임금협약", "wage26"), ("2026 임금협약", "2026년 임금협약", "wage26"),
+    ("26 임금협약", "2026년 임금협약", "wage26"), ("취업규칙", "취업규칙", "work"),
+    ("운영실무규정", "운영실무규정", "ops"), ("고충처리규정", "고충처리규정", "griev"),
+    ("회계실무규정", "회계실무규정", "acct"), ("퇴직연금규약", "퇴직연금규약", "pension"),
+    ("기본협약", "기본협약", "basic"), ("정관", "정관", "charter"),
 ]
+RULE_SLUG = {name: slug for _, name, slug in RULES}
 REF_RE = re.compile(r"(<[^>]+>)|(부칙\s*)?제(\d+)조(의(\d+))?|별표\s*(\d)")
-
-
 CHAIN_RE = re.compile(r"(?:\s*제\d+(?:항|호|목))*\s*(?:와|과|,|및|또는|부터|ㆍ|·|내지)\s*")
-LAW_TAIL_RE = re.compile(r"(법|령|규칙|규정|정관|규약|고시)\s*$")
+LAW_REFS = {}   # 법령 이름 -> 조문 번호 집합 (본문 수집용)
+
+
+def immediate_doc(txt, part):
+    """번호 바로 앞에 붙은 문서 이름을 해석합니다. 없으면 "?"를 돌려줍니다."""
+    t = txt.rstrip()
+    m = re.search(r"「([^」]+)」$", t)
+    if m:
+        return ("law", m.group(1).strip())
+    if re.search(r"같은 법\s*시행령$", t):
+        lw = last_law(txt)
+        return ("law", lw + " 시행령") if lw else None
+    if t.endswith("같은 법"):
+        lw = last_law(txt)
+        return ("law", lw) if lw else None
+    bl = bare_law_tail(t)
+    if bl:
+        return ("law", bl)
+    if re.search(r"(모범단체협약|모범단협|모범단협\(안\)|모범단체협약\(안\)|협약\(안\))$", t):
+        return None
+    for word, name, _ in RULES:
+        if t.endswith(word):
+            return ("rule", name)
+    if t.endswith("같은 규정"):
+        r = last_rule(txt)
+        return ("rule", r) if r else None
+    if t.endswith("이 협약"):
+        return part
+    if t.endswith("단체협약"):
+        return "d"
+    if t.endswith("임금협약"):
+        return "w"
+    if re.search(r"(법|령|규칙|규정|규약|고시|지침|협약)$", t):
+        return None
+    return "?"
+
+
+# 낫표 없이 쓴 법령 이름도 알아봅니다(긴 이름부터 맞춥니다)
+KNOWN_LAWS = sorted([
+    "근로기준법 시행령", "근로기준법", "노동조합 및 노동관계조정법", "남녀고용평등과 일ㆍ가정 양립 지원에 관한 법률",
+    "산업안전보건법", "개인정보 보호법", "근로자참여 및 협력증진에 관한 법률", "산업재해보상보험법",
+    "기간제 및 단시간근로자 보호 등에 관한 법률", "고용보험법", "국가인권위원회법", "공직선거법", "민법",
+    "근로자퇴직급여 보장법", "모자보건법", "통신비밀보호법", "예비군법", "민방위기본법",
+], key=len, reverse=True)
+SHORT_LAWS = {"노동조합법": "노동조합 및 노동관계조정법", "남녀고용평등법": "남녀고용평등과 일ㆍ가정 양립 지원에 관한 법률",
+              "기간제법": "기간제 및 단시간근로자 보호 등에 관한 법률", "산안법": "산업안전보건법", "퇴직급여법": "근로자퇴직급여 보장법"}
+
+
+def bare_law_tail(t):
+    for nm in KNOWN_LAWS:
+        if t.endswith(nm):
+            return nm
+    for sh, nm in SHORT_LAWS.items():
+        if t.endswith(sh):
+            return nm
+    return None
+
+
+def last_law(txt):
+    ms = re.findall(r"「([^」]+)」", txt)
+    return ms[-1].strip() if ms else None
+
+
+def last_rule(txt):
+    best, name = -1, None
+    for word, nm, _ in RULES:
+        j = txt.rfind(word)
+        if j > best:
+            best, name = j, nm
+    return name
+
+
+def sentence_doc(txt, part):
+    cut = max(txt.rfind(". "), txt.rfind("다."), txt.rfind("\n"))
+    sent = txt[cut + 1:] if cut >= 0 else txt
+    cands = [(m.end(), "law") for m in re.finditer(r"「[^」]+」|같은 법", sent)]
+    for nm in list(KNOWN_LAWS) + list(SHORT_LAWS):
+        j = sent.rfind(nm)
+        if j >= 0:
+            cands.append((j + len(nm), "law"))
+    for word, name, _ in RULES:
+        j = sent.rfind(word)
+        if j >= 0:
+            cands.append((j + len(word), "rule"))
+    for m in re.finditer(r"(?<!모범)단체협약|모범단(?:체협약|협)", sent):
+        cands.append((m.end(), "d" if not m.group(0).startswith("모범") else "ext"))
+    for m in re.finditer(r"임금협약", sent):
+        pre = sent[:m.start()]
+        cands.append((m.end(), "rule" if re.search(r"(2026년?|26)\s*$", pre) else "w"))
+    for m in re.finditer(r"이 협약", sent):
+        cands.append((m.end(), part))
+    if not cands:
+        return part
+    kind = max(cands)[1]
+    return kind if kind in ("d", "w") else None
+
+
+def ref_key(target, m):
+    if not target:
+        return None
+    if isinstance(target, tuple):
+        kind, name = target
+        if m.group(6):
+            return None
+        n = m.group(3) + ("의" + m.group(5) if m.group(5) else "")
+        if m.group(2):
+            return None
+        if kind == "law":
+            LAW_REFS.setdefault(name, set()).add(n)
+            return "L|%s|%s" % (name, n)
+        return "R|%s|%s" % (RULE_SLUG[name], n)
+    if m.group(6):
+        key = "%s-t%s" % (target, m.group(6))
+    else:
+        n = m.group(3) + ("의" + m.group(5) if m.group(5) else "")
+        key = "%s-%s%s" % (target, "a" if m.group(2) else "", n)
+    return key if key in ARTS else None
 
 
 def link_refs(h, part, mode="text"):
-    """mode="law"는 조문 원문: 번호 바로 앞의 문서 이름만 봅니다. mode="text"는 해설: 같은 문장의 가장 가까운 문서 이름을 봅니다."""
+    """mode="law"는 조문 원문, mode="text"는 해설과 비교 자료입니다."""
     out, pos, txt = [], 0, ""
     last_target, last_end = part, None
     in_a = False
@@ -87,53 +207,36 @@ def link_refs(h, part, mode="text"):
             out.append(token)
             txt += token
             continue
-        tail = txt[-16:]
         if last_end is not None and CHAIN_RE.fullmatch(txt[last_end:]):
             target = last_target
-        elif re.search(r"(?<!모범)단체협약\s*$", tail):
-            target = "d"
-        elif re.search(r"임금협약\s*$", tail):
-            target = None if re.search(r"(2026년?|26)\s*임금협약\s*$", tail) else "w"
-        elif LAW_TAIL_RE.search(tail) or tail.rstrip().endswith("」") or re.search(r"(협약|모범단협)\s*$", tail):
-            target = None
-        elif mode == "law" or m.group(6):
-            target = part
         else:
-            cut = max(txt.rfind(". "), txt.rfind("다."), txt.rfind("\n"))
-            sent = txt[cut + 1:] if cut >= 0 else txt
-            best, target = -1, part
-            for word, tgt in ANCHORS:
-                j = sent.rfind(word)
-                if j >= 0 and j + len(word) > best:
-                    if word == "임금협약" and re.search(r"(2026년?|26)\s*$", sent[:j]):
-                        tgt = None
-                    if word == "단체협약" and sent[:j].endswith("모범"):
-                        tgt = None
-                    best, target = j + len(word), tgt
-            if target == "self":
-                target = part
-            elif target == "keep":
-                target = last_target
-        if tail.rstrip().endswith("이 협약"):
-            target = part
-        key = None
-        if target:
-            if m.group(6):
-                key = "%s-t%s" % (target, m.group(6))
-            else:
-                n = m.group(3) + ("의" + m.group(5) if m.group(5) else "")
-                key = "%s-%s%s" % (target, "a" if m.group(2) else "", n)
-            if key not in ARTS:
-                key = None
+            target = immediate_doc(txt, part)
+            if target == "?":
+                target = part if (mode == "law" or m.group(6)) else sentence_doc(txt, part)
+        key = ref_key(target, m)
         last_target = target
         if key:
-            out.append('<a class="ref" href="#%s" data-r="%s">%s</a>' % (key, key, token))
+            if key.startswith("R|charter"):
+                out.append('<span class="ref" tabindex="0" data-r="%s">%s</span>' % (esc(key), token))
+            else:
+                ext = ' target="_blank" rel="noopener"' if key.startswith("L|") else ""
+                out.append('<a class="ref" href="%s" data-r="%s"%s>%s</a>' % (ref_href(key), esc(key), ext, token))
         else:
             out.append(token)
         txt += token
         last_end = len(txt)
     out.append(h[pos:])
     return "".join(out)
+
+
+def ref_href(key):
+    if key.startswith("L|"):
+        _, name, n = key.split("|")
+        return esc("https://www.law.go.kr/법령/%s/제%s조" % (name.replace(" ", ""), n.replace("의", "의")))
+    if key.startswith("R|"):
+        _, slug, n = key.split("|")
+        return "#r-%s-%s" % (slug, n)
+    return "#" + key
 
 
 # ---------- 조각 렌더링 ----------
@@ -365,7 +468,7 @@ def render_intro():
     o.append("""<div class="toc-cards">
 <button type="button" data-tab="p-d"><b>단체협약(안)</b><span>노동조건과 노사관계 전반의 제도 · 151개 조</span></button>
 <button type="button" data-tab="p-w"><b>임금협약(안)</b><span>2027년 기본급, 직책수당, 복리후생 금품 · 18개 조</span></button>
-<button type="button" data-tab="p-ap"><b>부록</b><span>법정 기준 대비 수준, 개정이 필요한 규정, 노사 공유 자료</span></button>
+<button type="button" data-tab="p-ap"><b>부록</b><span>법정 기준 대비 수준, 개정이 필요한 규정, 참고문헌</span></button>
 <button type="button" data-tab="p-r"><b>현행 규정</b><span>기본협약, 2026년 임금협약, 취업규칙 등 7개 문서</span></button>
 </div>""")
     o.append('<div class="letter-talk">%s</div>' % talk("intro").replace("이 조문에 대한", "교섭 전반에 대한"))
@@ -401,7 +504,8 @@ def render_appx():
         else:
             t.append('<div class="tc"><a class="tc-h" href="#%s" data-go="%s">%s<b class="cc" data-tcc="%s"></b></a></div>' % (
                 s["key"], s["key"], esc(title), s["key"]))
-    t.append("</div></div>")
+    if any(s["key"] == "ap-D" for s in doc["appx"]):
+        t.append("</div></div>")
     return "".join(o), "".join(t)
 
 
@@ -412,6 +516,34 @@ def current_rules():
     # 조합원 공유본의 껍데기(div.pane)를 벗기고 문서 묶음만 씁니다
     m = re.search(r'<div class="pane doc" id="p-r">(.*)</div>\s*$', raw, re.S)
     inner = m.group(1) if m else raw
+    slug_by_id = {"r-basic": "basic", "r-wage": "wage26", "r-취업규칙": "work", "r-운영실무규정": "ops",
+                  "r-고충처리규정": "griev", "r-회계실무규정": "acct", "r-퇴직연금규약": "pension"}
+    name_by_slug = {v: k for k, v in RULE_SLUG.items()}
+    out, pos = [], 0
+    parts = re.split(r'(<div id="r-[^"]+" class="rdoc[^"]*">)', inner)
+    cur = None
+    for seg in parts:
+        mm = re.match(r'<div id="(r-[^"]+)"', seg)
+        if mm:
+            cur = slug_by_id.get(mm.group(1))
+            out.append(seg)
+            continue
+        if cur:
+            def add_id(ma):
+                block = ma.group(0)
+                hm = re.search(r"<h5>제(\d+)조(?:의(\d+))?\s*(?:\(([^<]*)\))?</h5>", block)
+                if not hm:
+                    return block
+                n = hm.group(1) + ("의" + hm.group(2) if hm.group(2) else "")
+                key = "R|%s|%s" % (cur, n)
+                if key not in REF_DATA:
+                    body = [html.unescape(re.sub(r"<[^>]+>", "", x)) for x in re.findall(r"<p[^>]*>(.*?)</p>", block, re.S)]
+                    title = name_by_slug[cur] + " 제%s조" % n + ("(%s)" % html.unescape(hm.group(3)) if hm.group(3) else "")
+                    REF_DATA[key] = {"t": title, "b": [x for x in body if x.strip()]}
+                return block.replace('<div class="ra">', '<div class="ra" id="r-%s-%s">' % (cur, n), 1)
+            seg = re.sub(r'<div class="ra">.*?(?=<div class="ra">|<h4|$)', add_id, seg, flags=re.S)
+        out.append(seg)
+    inner = "".join(out)
     names = re.findall(r'<div id="(r-[^"]+)" class="rdoc', inner)
     titles = re.findall(r'class="rdoc[^"]*"><h3>([^<]+)</h3>', inner)
     btn = "".join('<button class="rbtn%s" type="button" data-r="%s">%s</button>' % (
@@ -423,6 +555,31 @@ d_html, d_toc = render_agreement("d")
 w_html, w_toc = render_agreement("w")
 ap_html, ap_toc = render_appx()
 r_html, r_toc = current_rules()
+
+# 법령 조문 원문(src/laws.json)과 정관 요약
+LAWS_PATH = os.path.join(SRC, "laws.json")
+LAWS = json.load(open(LAWS_PATH, encoding="utf-8")) if os.path.exists(LAWS_PATH) else {}
+for name, arts in LAWS.items():
+    for n, a in arts.items():
+        REF_DATA["L|%s|%s" % (name, n)] = {"t": "「%s」 제%s조%s" % (name, n, "(%s)" % a["title"] if a.get("title") else ""),
+                                            "b": a["lines"], "src": "법제처 국가법령정보센터 현행 법령"}
+REF_DATA["R|charter|14"] = {"t": "정관 제14조", "b": ["이사장은 법인을 대표한다."], "src": "정관 원문이 아닌 요지입니다."}
+REF_DATA["R|charter|29"] = {"t": "정관 제29조", "b": ["소장이 사무국 업무를 총괄하며, 제5항은 취업규칙의 개정에 이사회 의결을 요구한다."], "src": "정관 원문이 아닌 요지입니다."}
+
+missing_laws = sorted("%s 제%s조" % (k, n) for k, ns in LAW_REFS.items() for n in ns if "L|%s|%s" % (k, n) not in REF_DATA)
+if missing_laws:
+    print("본문을 찾지 못한 법령 조문 %d개" % len(missing_laws))
+    json.dump({k: sorted(v) for k, v in LAW_REFS.items()}, open(os.path.join(ROOT, "build", "law_refs.json"), "w", encoding="utf-8"), ensure_ascii=False, indent=1)
+
+
+def drop_dead_refs(h):
+    def f(m):
+        return m.group(0) if html.unescape(m.group(1)) in REF_DATA else m.group(2)
+    h = re.sub(r'<a class="ref" href="[^"]*" data-r="([^"]+)"[^>]*>([^<]*)</a>', f, h)
+    return re.sub(r'<span class="ref" tabindex="0" data-r="([^"]+)">([^<]*)</span>', f, h)
+
+
+d_html, w_html, ap_html, r_html = map(drop_dead_refs, (d_html, w_html, ap_html, r_html))
 
 pw = os.environ.get("GATE_PASSWORD", "")
 gate_hash = hashlib.sha256(pw.encode("utf-8")).hexdigest() if pw else ""
@@ -514,6 +671,9 @@ page = """<!DOCTYPE html>
     "js": js,
 }
 
+for _t in DROP_TEXT:
+    page = page.replace(_t, "")
+assert "부록 D" not in page and "노사 공유 자료" not in page
 open(os.path.join(ROOT, "index.html"), "w", encoding="utf-8").write(page)
 print("index.html %d bytes, 단체협약 %d, 임금협약 %d, 암호 %s" % (
     len(page.encode()), sum(1 for k in ARTS if k.startswith("d-")), sum(1 for k in ARTS if k.startswith("w-")),

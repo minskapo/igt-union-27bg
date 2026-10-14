@@ -156,15 +156,17 @@ table.t tbody tr:hover td{background:rgba(0,0,0,.015)}
 .law table.t td{min-width:5em;height:2.3em}
 
 /* 조문 참조 */
-a.ref{color:inherit;text-decoration:underline;text-decoration-color:var(--union);text-decoration-style:dotted;
+.ref{color:inherit;cursor:help;text-decoration:underline;text-decoration-color:var(--union);text-decoration-style:dotted;
   text-underline-offset:3px;text-decoration-thickness:1.5px}
-a.ref:hover{color:var(--union);text-decoration-style:solid}
-#tip{position:fixed;z-index:120;max-width:440px;max-height:60vh;overflow:hidden;background:#17221E;color:#E8EFEB;
+.ref:hover{color:var(--union);text-decoration-style:solid}
+#tip{position:fixed;z-index:120;max-width:500px;max-height:calc(100vh - 20px);overflow:hidden;background:#17221E;color:#E8EFEB;
   padding:13px 16px;border-radius:10px;font-size:13px;line-height:1.75;box-shadow:0 14px 34px rgba(10,22,17,.28);
   opacity:0;pointer-events:none;transition:opacity .12s}
 #tip.on{opacity:1}
 #tip b{display:block;color:#fff;font-size:13.5px;margin-bottom:5px}
 #tip p{margin:0 0 .3em;font-family:var(--serif)}
+#tip p.more{font-family:var(--sans);color:#A9BAB2}
+#tip small{display:block;margin-top:8px;padding-top:7px;border-top:1px solid rgba(255,255,255,.15);font-size:11.5px;color:#A9BAB2}
 
 /* 의견 */
 .talk{grid-column:1/-1;border-top:1px solid var(--rule2);padding:14px 24px 16px;background:var(--card)}
@@ -323,7 +325,7 @@ a.ref:hover{color:var(--union);text-decoration-style:solid}
   .letter{padding:0;max-width:none}
   .letter h1{font-size:20pt}
   .letter p{font-size:11pt;line-height:1.9}
-  a.ref{text-decoration:none}
+  .ref{text-decoration:none}
   table.t{font-size:8.6pt}
   .tw{overflow:visible}
   .guide{padding:0;margin-bottom:10pt}

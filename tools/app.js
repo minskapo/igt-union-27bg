@@ -78,7 +78,12 @@ $('#q').addEventListener('input',function(){var v=this.value.trim();clearTimeout
 var tip=$('#tip');
 function showTip(a){
  var r=REF[a.dataset.r];if(!r)return;
- tip.innerHTML='<b>'+esc(r.t)+'</b>'+r.b.slice(0,14).map(function(x){return '<p>'+esc(x)+'</p>';}).join('')+(r.b.length>14?'<p>…</p>':'');
+ var k=a.dataset.r,more=k.indexOf('L|')===0?'누르면 국가법령정보센터에서 엽니다':(k.indexOf('R|charter')===0?'':'누르면 해당 조문으로 이동합니다');
+ /* 화면에 들어갈 만큼만 보여 주고, 넘치면 이하 생략을 표시합니다 */
+ var budget=Math.max(500,Math.floor(innerHeight*innerWidth/1500)),used=0,shown=[],cut=false;
+ for(var i=0;i<r.b.length;i++){var x=r.b[i];if(used+x.length>budget&&shown.length){cut=true;break;}shown.push(x);used+=x.length;}
+ tip.innerHTML='<b>'+esc(r.t)+'</b>'+shown.map(function(x){return '<p>'+esc(x)+'</p>';}).join('')+(cut?'<p class="more">… 이하 생략</p>':'')+
+  ((r.src||more)?'<small>'+esc([r.src,more].filter(Boolean).join(' · '))+'</small>':'');
  tip.classList.add('on');
  var b=a.getBoundingClientRect(),t=tip.getBoundingClientRect();
  var x=Math.min(Math.max(10,b.left),innerWidth-t.width-10),y=b.bottom+8;
@@ -86,9 +91,9 @@ function showTip(a){
  tip.style.left=x+'px';tip.style.top=y+'px';
 }
 function hideTip(){tip.classList.remove('on');}
-document.addEventListener('mouseover',function(e){var a=e.target.closest('a.ref');if(a)showTip(a);});
-document.addEventListener('mouseout',function(e){if(e.target.closest('a.ref'))hideTip();});
-document.addEventListener('focusin',function(e){var a=e.target.closest('a.ref');if(a)showTip(a);});
+document.addEventListener('mouseover',function(e){var a=e.target.closest('.ref');if(a)showTip(a);});
+document.addEventListener('mouseout',function(e){if(e.target.closest('.ref'))hideTip();});
+document.addEventListener('focusin',function(e){var a=e.target.closest('.ref');if(a)showTip(a);});
 document.addEventListener('focusout',hideTip);
 document.addEventListener('keydown',function(e){if(e.key==='Escape'){hideTip();closeDlg();}});
 window.addEventListener('scroll',hideTip,{passive:true});
