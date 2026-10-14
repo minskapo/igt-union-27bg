@@ -456,7 +456,7 @@ def render_intro():
     paras = doc["intro"]
     sign_from = len(paras)
     for i, p in enumerate(paras):
-        if re.match(r"^\d{4}년\s*\d{1,2}월$", p["t"]):
+        if re.match(r"^\d{4}년\s*\d{1,2}월(\s*\d{1,2}일)?$", p["t"]):
             sign_from = i
             break
     for p in paras[:sign_from]:

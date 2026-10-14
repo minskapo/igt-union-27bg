@@ -233,7 +233,7 @@ def parse(path):
                 m = ART_RE.match(t)
                 mt = TBL_RE.match(t)
                 if m:
-                    is_sup = bool(m.group(1))
+                    is_sup = bool(m.group(1)) or chapter.replace(" ", "") == "부칙"
                     n = m.group(2) + ("의" + m.group(3) if m.group(3) else "")
                     key = "%s-%s%s" % (pre, "a" if is_sup else "", n)
                     label = ("부칙 " if is_sup else "") + "제%s조" % n
