@@ -684,10 +684,10 @@ $$('.dlg').forEach(function(d){d.addEventListener('click',function(e){if(e.targe
    회차(rounds)마다 조문별 기록과 기타 안건을 minutes 테이블에 둡니다.
    쓰기는 간사 암호를 서버 함수에서 확인한 뒤에만 이루어지며, 칸마다 따로 저장해 두 간사가 동시에 적어도 서로 덮어쓰지 않습니다. */
 var STATUS=[
- {v:'합의',c:'ok'},{v:'수정 합의',c:'ok'},{v:'계속 논의',c:'wait'},{v:'검토 후 회신',c:'wait'},
- {v:'쟁점',c:'hot'},{v:'참여형 회부',c:'up'},{v:'본교섭 회부',c:'up'},{v:'철회',c:'off'}];
+ {v:'원안합의',c:'ok'},{v:'수정합의',c:'ok'},{v:'추후논의',c:'wait'},
+ {v:'참여형 회부',c:'up'},{v:'본교섭 회부',c:'up'},{v:'쟁점',c:'hot'}];
 var SCLS={};STATUS.forEach(function(s){SCLS[s.v]=s.c;});
-var FILTERS=[['all','전체'],['cur','이번 회차'],['none','기록 없음'],['ok','합의'],['wait','논의 중'],['hot','쟁점·회부']];
+var FILTERS=[['all','전체'],['cur','이번 회차'],['none','기록 없음'],['ok','합의'],['wait','추후논의'],['hot','쟁점·회부']];
 var FLT='all';
 var ROUNDS=[], MIN=[], CUR=store.get(K.round)||'';
 var SEC=null;try{SEC=JSON.parse(store.get(K.sec)||'null');}catch(e){SEC=null;}
