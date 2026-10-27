@@ -359,11 +359,9 @@ def render_side(box, part):
     return '<div class="side">%s</div>' % "".join(secs)
 
 
-def talk(key):
-    return ('<div class="talk" data-talk="%s"><div class="talk-h"><b>의견</b><span data-cnt="%s"></span></div>'
-            '<div class="thread" data-list="%s"></div>'
-            '<form class="cf" data-form="%s"><textarea rows="1" name="b" placeholder="이 조문에 대한 의견이나 질문을 남겨 주세요." aria-label="의견 입력"></textarea>'
-            '<button type="submit">의견 등록</button></form></div>') % (key, key, key, key)
+def rec(key):
+    """실무교섭 회차별 간사 기록란. 내용은 app.js가 채웁니다."""
+    return '<div class="rec" data-rec="%s"></div>' % key
 
 
 def render_art(a, part):
@@ -375,11 +373,11 @@ def render_art(a, part):
         else:
             body.append(render_table(b["rows"], part))
     no = a["label"] if a["label"] != a["title"] else ""
-    head = '<header class="ah">%s<h3>%s</h3><span class="ccount" data-cc="%s"></span><span class="lvs">%s</span></header>' % (
+    head = '<header class="ah">%s<h3>%s</h3><span class="st" data-st="%s"></span><span class="lvs">%s</span></header>' % (
         '<span class="no">%s</span>' % esc(no) if no else "", esc(a["title"]), a["key"], badges((a["box"] or {}).get("badges", [])))
     search = esc(plain(" ".join(b.get("h", "") for b in a["body"])))
     return '<article class="art" id="%s" data-k="%s">%s<div class="law">%s</div>%s%s</article>' % (
-        a["key"], a["key"], head, "".join(body), render_side(a["box"], part), talk(a["key"]))
+        a["key"], a["key"], head, "".join(body), render_side(a["box"], part), rec(a["key"]))
 
 
 def render_agreement(pre):
@@ -409,7 +407,7 @@ def render_agreement(pre):
             num = it["num"] if not it.get("annex") else it["num"].replace("별표 ", "표")
             if it.get("sup"):
                 num = "부" + it["num"]
-            row = '<a class="tc-a" href="#%s" data-go="%s"><i>%s</i><span>%s</span><b class="cc" data-tcc="%s"></b></a>' % (
+            row = '<a class="tc-a" href="#%s" data-go="%s"><i>%s</i><span>%s</span><b class="sd" data-tst="%s"></b></a>' % (
                 it["key"], it["key"], esc(num), esc(it["title"]), it["key"])
             if cur_toc is None:
                 toc.append({"title": it["title"], "key": it["key"], "rows": None})
@@ -445,7 +443,7 @@ def guide(kind):
     if kind == "d":
         return ("""<div class="guide"><h2>2027년 단체협약(안)</h2><p class="sub">전문과 본문 151개 조, 부칙 8개 조, 별표 3개로 이루어져 있습니다.</p>
 <p>조문마다 왼쪽에 요구안 원문을, 오른쪽에 해설과 관련 법령, 현행 규정·협약과의 비교를 두었습니다. 밑줄 친 조문 번호에 마우스를 올리면 그 조문의 원문이 보이고, 누르면 해당 조문으로 이동합니다.</p>
-<p class="noprint">조문 아래 의견란에 질문이나 의견을 남겨 주시면 조합과 연구소가 함께 볼 수 있습니다. 의견에는 이름과 소속이 함께 표시됩니다.</p>%s</div>""" % LEGEND)
+<p class="noprint">조문 아래 기록란에는 실무교섭 회차별로 노사 간사가 함께 적은 입장과 논의경과, 결과가 쌓입니다. 머리의 회차 선택에서 지금 회의 회차를 고른 뒤 적어 주세요.</p>%s</div>""" % LEGEND)
     return ("""<div class="guide"><h2>2027년 임금협약(안)</h2><p class="sub">본문 18개 조와 별표 2개로 이루어져 있습니다.</p>
 <p>제도는 단체협약(안)에 두고, 2027년에 적용할 금액과 지급 방식은 임금협약(안)에 정했습니다. 조문 제목 옆의 표시는 2026년 임금협약과 견준 수준입니다.</p></div>""")
 
@@ -471,7 +469,6 @@ def render_intro():
 <button type="button" data-tab="p-ap"><b>부록</b><span>법정 기준 대비 수준, 개정이 필요한 규정, 참고문헌</span></button>
 <button type="button" data-tab="p-r"><b>현행 규정</b><span>기본협약, 2026년 임금협약, 취업규칙 등 7개 문서</span></button>
 </div>""")
-    o.append('<div class="letter-talk">%s</div>' % talk("intro").replace("이 조문에 대한", "교섭 전반에 대한"))
     return "".join(o)
 
 
@@ -496,8 +493,8 @@ def render_appx():
                 bd.append(render_table(b["rows"], "d"))
                 first_table = False
         title = s["title"]
-        o.append('<section class="ap" id="%s" data-k="%s"><header class="ah"><h3>%s</h3><span class="ccount" data-cc="%s"></span></header><div class="bd">%s</div>%s</section>' % (
-            s["key"], s["key"], esc(title), s["key"], "".join(bd), talk(s["key"]).replace("이 조문에 대한", "이 자료에 대한")))
+        o.append('<section class="ap" id="%s" data-k="%s"><header class="ah"><h3>%s</h3></header><div class="bd">%s</div></section>' % (
+            s["key"], s["key"], esc(title), "".join(bd)))
         if s["key"].startswith("ap-D") and len(s["key"]) > 4:
             t.append('<a class="tc-a" href="#%s" data-go="%s"><i>%s</i><span>%s</span><b class="cc" data-tcc="%s"></b></a>' % (
                 s["key"], s["key"], s["key"][4:], esc(re.sub(r"^\d+\.\s*", "", title)), s["key"]))
@@ -582,7 +579,7 @@ def drop_dead_refs(h):
 d_html, w_html, ap_html, r_html = map(drop_dead_refs, (d_html, w_html, ap_html, r_html))
 
 pw = os.environ.get("GATE_PASSWORD", "")
-gate_hash = hashlib.sha256(pw.encode("utf-8")).hexdigest() if pw else ""
+gate_hash = hashlib.sha256(pw.encode("utf-8")).hexdigest() if pw else os.environ.get("GATE_HASH", "")
 
 css = open(os.path.join(ROOT, "tools", "style.css"), encoding="utf-8").read()
 js = open(os.path.join(ROOT, "tools", "app.js"), encoding="utf-8").read()
@@ -608,20 +605,23 @@ page = """<!DOCTYPE html>
   <button type="button" data-p="p-w" aria-selected="false">임금협약(안)</button>
   <button type="button" data-p="p-ap" aria-selected="false">부록</button>
   <button type="button" data-p="p-r" aria-selected="false">현행 규정</button>
+  <button type="button" data-p="p-m" aria-selected="false">실무교섭 기록</button>
  </nav>
  <div class="hact">
-  <button class="hbtn opt" id="expBtn" type="button">의견 내려받기</button>
+  <button class="hbtn rnd" id="roundBtn" type="button" title="기록할 회차를 고릅니다">회차 없음</button>
   <button class="hbtn opt" id="printBtn" type="button">인쇄</button>
-  <button class="hbtn me" id="meBtn" type="button">이름 설정</button>
+  <button class="hbtn me" id="secBtn" type="button">간사 로그인</button>
  </div>
 </div></header>
 <div class="wrap solo" id="wrap">
 <aside>
  <input id="q" type="search" placeholder="낱말로 조문 찾기" aria-label="조문 찾기">
+ <div class="sfilt" id="sfilt" role="group" aria-label="논의 상태로 거르기"></div>
  <div class="tg" data-p="p-d">%(d_toc)s</div>
  <div class="tg" data-p="p-w">%(w_toc)s</div>
  <div class="tg" data-p="p-ap">%(ap_toc)s</div>
  <div class="tg" data-p="p-r">%(r_toc)s</div>
+ <div class="tg" data-p="p-m"><div id="mtoc"></div></div>
 </aside>
 <main>
  <div class="printhead"><b>%(title)s</b><span>녹색전환연구소노동조합 · 연구소 공유본 · %(date)s</span></div>
@@ -630,18 +630,30 @@ page = """<!DOCTYPE html>
  <div class="pane pr" id="p-w">%(gw)s%(w)s</div>
  <div class="pane pr" id="p-ap">%(ap)s</div>
  <div class="pane" id="p-r">%(r)s</div>
+ <div class="pane" id="p-m"><div id="mroot"></div></div>
 </main></div>
 
-<div class="dlg" id="meDlg" role="dialog" aria-modal="true" aria-labelledby="meT"><form class="box" id="meForm">
- <h3 id="meT">이름과 소속을 적어 주세요</h3>
- <p>남기시는 의견에 이름과 소속이 함께 표시됩니다. 이 브라우저에 저장되며 언제든 바꿀 수 있습니다.</p>
- <input id="meName" type="text" maxlength="40" placeholder="이름" autocomplete="name" required>
- <fieldset><legend>소속</legend><div class="seg">
-  <label class="i"><input type="radio" name="org" value="연구소" required>연구소</label>
-  <label><input type="radio" name="org" value="조합">조합</label></div></fieldset>
- <div class="err" id="meErr"></div>
- <div class="row"><button type="button" data-close>취소</button><button class="p" type="submit">저장</button></div>
+<div class="dlg" id="secDlg" role="dialog" aria-modal="true" aria-labelledby="secT"><form class="box" id="secForm">
+ <h3 id="secT">간사 로그인</h3>
+ <p>실무교섭 기록은 노사 간사만 쓸 수 있습니다. 간사 암호로 노측과 사측을 구분하며, 이 브라우저에만 저장됩니다.</p>
+ <input id="secName" type="text" maxlength="40" placeholder="이름과 직함 (예: 김민석 사무처장)" autocomplete="name" required>
+ <input id="secKey" type="password" placeholder="간사 암호" autocomplete="current-password" required style="margin-top:8px">
+ <div class="err" id="secErr"></div>
+ <div class="row"><button type="button" id="secOut">로그아웃</button><button type="button" data-close>취소</button><button class="p" type="submit">로그인</button></div>
 </form></div>
+
+<div class="dlg" id="rndDlg" role="dialog" aria-modal="true" aria-labelledby="rndT"><div class="box">
+ <h3 id="rndT">기록할 회차</h3>
+ <p>고른 회차는 이 브라우저에서 조문 기록란의 기본 회차가 됩니다.</p>
+ <div id="rndList" class="rlist"></div>
+ <form id="rndNew" class="rnew"><b>새 회차 만들기</b>
+  <div class="rnew-r"><select name="kind" aria-label="교섭 구분"><option value="실무">실무교섭</option><option value="본">본교섭</option></select>
+  <span>제</span><input name="no" type="number" min="1" max="99" required aria-label="차수"><span>차</span>
+  <input name="held_on" type="date" aria-label="일자"></div>
+  <div class="err" id="rndErr"></div>
+  <div class="row"><button type="button" data-close>닫기</button><button class="p" type="submit">만들기</button></div>
+ </form>
+</div></div>
 
 <div class="dlg" id="prDlg" role="dialog" aria-modal="true" aria-labelledby="prT"><form class="box" id="prForm">
  <h3 id="prT">인쇄하기</h3>
@@ -649,7 +661,7 @@ page = """<!DOCTYPE html>
  <fieldset><legend>범위</legend><div class="seg">
   <label><input type="radio" name="scope" value="cur" checked>지금 보는 탭</label>
   <label><input type="radio" name="scope" value="all">요구안 전체</label></div></fieldset>
- <label class="chkrow"><input type="checkbox" name="cmt">남긴 의견도 함께 인쇄</label>
+ <label class="chkrow"><input type="checkbox" name="cmt" checked>실무교섭 기록도 함께 인쇄</label>
  <div class="row"><button type="button" data-close>취소</button><button class="p" type="submit">인쇄</button></div>
 </form></div>
 
@@ -674,6 +686,7 @@ page = """<!DOCTYPE html>
 for _t in DROP_TEXT:
     page = page.replace(_t, "")
 assert "부록 D" not in page and "노사 공유 자료" not in page
+assert "data-list=" not in page
 open(os.path.join(ROOT, "index.html"), "w", encoding="utf-8").write(page)
 print("index.html %d bytes, 단체협약 %d, 임금협약 %d, 암호 %s" % (
     len(page.encode()), sum(1 for k in ARTS if k.startswith("d-")), sum(1 for k in ARTS if k.startswith("w-")),
